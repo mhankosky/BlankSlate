@@ -59,7 +59,15 @@ try {
         echo json_encode(['status'=>$st['status'], 'player_name'=>$pl['name'], 'score'=>$pl['total_score'], 'round_number'=>$rn, 'my_ans'=>strtoupper($my_ans['answer_text']??''), 'word_left'=>strtoupper($st['word_left']??''), 'word_right'=>strtoupper($st['word_right']??''), 'leaderboard'=>$lb]);
     }
     elseif ($action === 'start_round') {
-        $wl = strtoupper($conn->real_escape_string($_GET['wl'])); $wr = strtoupper($conn->real_escape_string($_GET['wr']));
+        $wl = trim($_GET['wl'] ?? '');
+        $wr = trim($_GET['wr'] ?? '');
+        // STRICT VALIDATION: Only one box can be filled
+        if (($wl === '' && $wr === '') || ($wl !== '' && $wr !== '')) {
+            echo json_encode(['success' => false, 'error' => 'One box must be empty!']);
+            exit;
+        }
+        $wl = strtoupper($conn->real_escape_string($wl)); 
+        $wr = strtoupper($conn->real_escape_string($wr));
         $conn->query("UPDATE game_state SET status='active', word_left='$wl', word_right='$wr' WHERE id=1");
         $conn->query("INSERT INTO round_history (round_number, word_left, word_right) VALUES ($rn, '$wl', '$wr') ON DUPLICATE KEY UPDATE word_left='$wl', word_right='$wr'");
         echo json_encode(['success' => true]);

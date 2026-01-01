@@ -3,6 +3,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
 <link rel="stylesheet" href="admin_style.css"><script src="darkmode.js"></script>
 <script>
+function validateInputs() {
+    const l = document.getElementById('wl').value.trim();
+    const r = document.getElementById('wr').value.trim();
+    const btn = document.getElementById('start-btn');
+    // Enabled only if one is empty and one is full
+    const isValid = (l === "" && r !== "") || (l !== "" && r === "");
+    btn.disabled = !isValid;
+    btn.style.opacity = isValid ? "1" : "0.5";
+}
+
 async function refresh() {
     try {
         const res = await fetch('api.php?action=admin_data');
@@ -18,7 +28,10 @@ async function refresh() {
             document.getElementById('admin-prompts').style.display = 'flex';
             document.getElementById('box-l').innerText = d.word_left;
             document.getElementById('box-r').innerText = d.word_right;
-        } else { document.getElementById('admin-prompts').style.display = 'none'; }
+        } else { 
+            document.getElementById('admin-prompts').style.display = 'none';
+            validateInputs(); // Check button state when waiting
+        }
 
         document.getElementById('space-toggle').checked = d.settings.allow_spaces == 1;
 
@@ -54,6 +67,7 @@ async function refresh() {
         }
     } catch(e) {}
 }
+
 async function doAct(a){ 
     const res = await fetch('api.php?action='+a); 
     const d = await res.json();
@@ -63,6 +77,8 @@ async function doAct(a){
             document.getElementById('wr').value = '';
         }
         refresh(); 
+    } else if (d.error) {
+        alert(d.error);
     }
 }
 setInterval(refresh, 3000); window.onload = refresh;
@@ -76,8 +92,11 @@ setInterval(refresh, 3000); window.onload = refresh;
     <div id="admin-prompts" class="prompt-container" style="display:none;"><div id="box-l" class="prompt-box"></div><div id="box-r" class="prompt-box"></div></div>
     
     <div id="wait-ui" style="display:none;">
-        <div class="admin-input-row"><input type="text" id="wl" placeholder="LEFT"> <input type="text" id="wr" placeholder="RIGHT"></div>
-        <button onclick="doAct('start_round&wl='+document.getElementById('wl').value.toUpperCase()+'&wr='+document.getElementById('wr').value.toUpperCase())">START ROUND</button>
+        <div class="admin-input-row">
+            <input type="text" id="wl" placeholder="LEFT PROMPT" oninput="validateInputs()">
+            <input type="text" id="wr" placeholder="RIGHT PROMPT" oninput="validateInputs()">
+        </div>
+        <button id="start-btn" onclick="doAct('start_round&wl='+document.getElementById('wl').value.toUpperCase()+'&wr='+document.getElementById('wr').value.toUpperCase())">START ROUND</button>
     </div>
     <div id="active-ui" style="display:none;"><button style="background:green" onclick="doAct('lock_score')">LOCK & SCORE</button></div>
     <div id="scored-ui" style="display:none;"><button style="background:#666" onclick="doAct('next_round')">NEXT ROUND</button></div>
@@ -87,7 +106,7 @@ setInterval(refresh, 3000); window.onload = refresh;
         <div><h3>Leaderboard</h3><div id="lead-list"></div></div>
     </div>
 
-    <button style="margin-top:20px; background:#444;" onclick="let v=document.getElementById('history-cont'); v.style.display=v.style.display==='none'?'block':'none'">TOGGLE HISTORY TABLE</button>
+    <button style="margin-top:20px; background:#444;" onclick="let v=document.getElementById('history-cont'); v.style.display=v.style.display==='none'?'block':'none'">HISTORY TABLE</button>
     <div id="history-cont" style="display:none; overflow-x:auto; margin-top:10px;"><div id="history-view"></div></div>
 
     <div id="menu" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000;">
