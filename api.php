@@ -26,45 +26,70 @@ try {
             echo json_encode(['success' => true]);
         }
     }
-    elseif ($action === 'admin_data') {
-        $res = $conn->query("SELECT p.name, a.answer_text, a.points_earned FROM players p LEFT JOIN answers a ON p.id = a.player_id AND a.round_number = $rn WHERE p.hidden=0");
-        $ans_list = []; $counts = []; $temp = [];
-        while($r = $res->fetch_assoc()) { 
-            $val = strtoupper(trim($r['answer_text'] ?? ''));
-            $temp[] = ['name' => $r['name'], 'ans' => $val, 'pts' => (int)$r['points_earned']];
-            if(!empty($val)) @$counts[$val]++; 
-        }
-        foreach($temp as $row) {
-            $c = $counts[$row['ans']] ?? 0;
-            $live_pts = ($c == 2) ? 3 : (($c >= 3) ? 1 : 0);
-            $ans_list[] = ['name'=>$row['name'], 'ans'=>$row['ans']?:'...', 'count'=>$c, 'pts'=>($st['status']==='scored'?$row['pts']:$live_pts)];
-        }
-        $scores = $conn->query("SELECT name, total_score FROM players WHERE hidden=0 ORDER BY total_score DESC")->fetch_all(MYSQLI_ASSOC);
-        $history = [];
-        $h_res = $conn->query("SELECT * FROM round_history ORDER BY round_number DESC LIMIT 10");
-        while($h = $h_res->fetch_assoc()) {
-            $h_rn = $h['round_number'];
-            $p_res = $conn->query("SELECT p.name, a.answer_text as ans, a.points_earned as pts FROM players p JOIN answers a ON p.id = a.player_id WHERE a.round_number = $h_rn AND p.hidden = 0");
-            $h['player_results'] = $p_res->fetch_all(MYSQLI_ASSOC);
-            $history[] = $h;
-        }
-        echo json_encode(['status'=>$st['status'], 'round_number'=>$rn, 'word_left'=>strtoupper($st['word_left']??''), 'word_right'=>strtoupper($st['word_right']??''), 'answers'=>$ans_list, 'scores'=>$scores, 'history'=>$history, 'settings'=>$sett]);
-    }
     elseif ($action === 'get_state') {
         $t = $conn->real_escape_string($_GET['token'] ?? '');
         $pl = $conn->query("SELECT id, name, total_score FROM players WHERE token='$t'")->fetch_assoc();
         if (!$pl) { echo json_encode(['error' => 'not_found']); exit; }
         $my_ans = $conn->query("SELECT answer_text FROM answers WHERE player_id=".$pl['id']." AND round_number=$rn")->fetch_assoc();
         $lb = $conn->query("SELECT name, total_score FROM players WHERE hidden=0 ORDER BY total_score DESC LIMIT 5")->fetch_all(MYSQLI_ASSOC);
-        echo json_encode(['status'=>$st['status'], 'player_name'=>$pl['name'], 'score'=>$pl['total_score'], 'round_number'=>$rn, 'my_ans'=>strtoupper($my_ans['answer_text']??''), 'word_left'=>strtoupper($st['word_left']??''), 'word_right'=>strtoupper($st['word_right']??''), 'leaderboard'=>$lb]);
+        echo json_encode([
+            'status' => $st['status'],
+            'player_name' => $pl['name'],
+            'score' => (int)$pl['total_score'],
+            'round_number' => $rn,
+            'word_left' => strtoupper($st['word_left'] ?? ''),
+            'word_right' => strtoupper($st['word_right'] ?? ''),
+            'my_ans' => strtoupper($my_ans['answer_text'] ?? ''),
+            'leaderboard' => $lb
+        ]);
+    }
+    elseif ($action === 'admin_data') {
+        $res = $conn->query("SELECT p.id, p.name, p.hidden, a.answer_text, a.points_earned FROM players p LEFT JOIN answers a ON p.id = a.player_id AND a.round_number = $rn");
+        $ans_list = []; $counts = []; $temp = [];
+        while($r = $res->fetch_assoc()) { 
+            $val = strtoupper(trim($r['answer_text'] ?? ''));
+            $temp[] = ['id' => $r['id'], 'name' => $r['name'], 'hidden' => (int)$r['hidden'], 'ans' => $val, 'pts' => (int)$r['points_earned']];
+            if(!empty($val) && !$r['hidden']) @$counts[$val]++; 
+        }
+        foreach($temp as $row) {
+            $c = $counts[$row['ans']] ?? 0;
+            $live_pts = ($c == 2) ? 3 : (($c >= 3) ? 1 : 0);
+            $ans_list[] = [
+                'id' => $row['id'], 'name' => $row['name'], 'hidden' => $row['hidden'],
+                'ans' => $row['ans'] ?: '...', 'count' => $c, 
+                'pts' => ($st['status']==='scored' ? $row['pts'] : $live_pts)
+            ];
+        }
+        $scores = $conn->query("SELECT id, name, total_score, hidden FROM players ORDER BY total_score DESC")->fetch_all(MYSQLI_ASSOC);
+        $history = $conn->query("SELECT * FROM round_history ORDER BY round_number DESC LIMIT 10")->fetch_all(MYSQLI_ASSOC);
+        foreach($history as &$h) {
+            $h_rn = $h['round_number'];
+            $h['player_results'] = $conn->query("SELECT p.name, a.answer_text as ans, a.points_earned as pts FROM players p JOIN answers a ON p.id = a.player_id WHERE a.round_number = $h_rn AND p.hidden = 0")->fetch_all(MYSQLI_ASSOC);
+        }
+        echo json_encode(['status'=>$st['status'], 'round_number'=>$rn, 'word_left'=>strtoupper($st['word_left']??''), 'word_right'=>strtoupper($st['word_right']??''), 'answers'=>$ans_list, 'scores'=>$scores, 'history'=>$history, 'settings'=>$sett]);
+    }
+    elseif ($action === 'edit_player') {
+        $id = (int)$_GET['id']; $n = strtoupper($conn->real_escape_string($_GET['name']));
+        $conn->query("UPDATE players SET name='$n' WHERE id=$id");
+        echo json_encode(['success' => true]);
+    }
+    elseif ($action === 'toggle_hide') {
+        $id = (int)$_GET['id'];
+        $conn->query("UPDATE players SET hidden = 1 - hidden WHERE id=$id");
+        echo json_encode(['success' => true]);
+    }
+    elseif ($action === 'remove_player') {
+        $id = (int)$_GET['id'];
+        $conn->query("DELETE FROM players WHERE id=$id");
+        $conn->query("DELETE FROM answers WHERE player_id=$id");
+        echo json_encode(['success' => true]);
     }
     elseif ($action === 'start_round') {
         $wl = trim($_GET['wl'] ?? ''); $wr = trim($_GET['wr'] ?? '');
         if (($wl === '' && $wr === '') || ($wl !== '' && $wr !== '')) {
             echo json_encode(['success' => false, 'error' => 'One box must be empty!']); exit;
         }
-        $wl = strtoupper($conn->real_escape_string($wl)); 
-        $wr = strtoupper($conn->real_escape_string($wr));
+        $wl = strtoupper($conn->real_escape_string($wl)); $wr = strtoupper($conn->real_escape_string($wr));
         $conn->query("UPDATE game_state SET status='active', word_left='$wl', word_right='$wr' WHERE id=1");
         $conn->query("INSERT INTO round_history (round_number, word_left, word_right) VALUES ($rn, '$wl', '$wr') ON DUPLICATE KEY UPDATE word_left='$wl', word_right='$wr'");
         echo json_encode(['success' => true]);
@@ -91,16 +116,13 @@ try {
     }
     elseif ($action === 'reset_scores') {
         $conn->query("UPDATE players SET total_score=0");
-        $conn->query("TRUNCATE answers");
-        $conn->query("TRUNCATE round_history");
+        $conn->query("TRUNCATE answers"); $conn->query("TRUNCATE round_history");
         $conn->query("UPDATE game_state SET round_number=1, status='waiting', word_left='', word_right='' WHERE id=1");
         echo json_encode(['success' => true]);
     }
     elseif ($action === 'reset_game') {
         $conn->query("SET FOREIGN_KEY_CHECKS=0");
-        $conn->query("TRUNCATE answers");
-        $conn->query("TRUNCATE players");
-        $conn->query("TRUNCATE round_history");
+        $conn->query("TRUNCATE answers"); $conn->query("TRUNCATE players"); $conn->query("TRUNCATE round_history");
         $conn->query("SET FOREIGN_KEY_CHECKS=1");
         $conn->query("UPDATE game_state SET round_number=1, status='waiting', word_left='', word_right='' WHERE id=1");
         echo json_encode(['success' => true]);

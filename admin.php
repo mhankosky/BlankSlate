@@ -8,20 +8,11 @@ function validateInputs() {
     const r = document.getElementById('wr').value.trim();
     const btn = document.getElementById('start-btn');
     const msg = document.getElementById('helper-text');
-    
-    if (l === "" && r === "") {
-        msg.innerText = "Enter text in one box to begin";
-        msg.style.color = "#888";
-        btn.disabled = true;
-    } else if (l !== "" && r !== "") {
-        msg.innerText = "Only one box can contain text!";
-        msg.style.color = "#dc3545";
-        btn.disabled = true;
-    } else {
-        msg.innerText = "Ready to start!";
-        msg.style.color = "#28a745";
-        btn.disabled = false;
-    }
+    const isValid = (l === "" && r !== "") || (l !== "" && r === "");
+    if(!msg) return;
+    msg.innerText = (l !== "" && r !== "") ? "Only one box can contain text!" : (isValid ? "Ready to start!" : "Enter text in one box to begin");
+    msg.style.color = (l !== "" && r !== "") ? "#dc3545" : (isValid ? "#28a745" : "#888");
+    btn.disabled = !isValid;
 }
 
 async function refresh() {
@@ -40,25 +31,33 @@ async function refresh() {
             document.getElementById('box-l').innerText = d.word_left;
             document.getElementById('box-r').innerText = d.word_right;
         } else { 
-            document.getElementById('admin-prompts').style.display = 'none';
-            validateInputs();
+            document.getElementById('admin-prompts').style.display = 'none'; 
+            validateInputs(); 
         }
 
         document.getElementById('space-toggle').checked = d.settings.allow_spaces == 1;
 
         let aHtml = '';
         (d.answers || []).forEach(a => {
-            let cls = 'no-match';
-            if(a.ans !== '...') {
-                if(a.count === 2) cls = 'match-2';
-                else if(a.count >= 3) cls = 'match-3';
-            }
-            aHtml += `<div class="ans-row"><span>${a.name}</span><span class="${cls}">${a.ans} <small class="pts-pill">+${a.pts}</small></span></div>`;
+            let cls = 'no-match'; if(a.ans !== '...') { if(a.count === 2) cls = 'match-2'; else if(a.count >= 3) cls = 'match-3'; }
+            let hTxt = a.hidden ? 'UNHIDE' : 'HIDE';
+            aHtml += `<div class="ans-row">
+                <span style="position:relative;">
+                    <span class="gear-icon" onclick="togglePlayerMenu(${a.id}, event)">⚙️</span>
+                    ${a.name}
+                    <div id="player-menu-${a.id}" class="player-dropdown">
+                        <div onclick="editPl(${a.id},'${a.name}')">Edit Name</div>
+                        <div onclick="doAct('toggle_hide&id=${a.id}')">${hTxt}</div>
+                        <div onclick="remPl(${a.id})" class="danger">Delete</div>
+                    </div>
+                </span>
+                <span class="${cls}">${a.ans} <small class="pts-pill">+${a.pts}</small></span>
+            </div>`;
         });
         document.getElementById('ans-list').innerHTML = aHtml;
 
         let lHtml = '';
-        (d.scores || []).forEach(s => { lHtml += `<div class="ans-row"><span>${s.name}</span><span>${s.total_score}</span></div>`; });
+        (d.scores || []).forEach(s => { if(!s.hidden) lHtml += `<div class="ans-row"><span>${s.name}</span><span>${s.total_score}</span></div>`; });
         document.getElementById('lead-list').innerHTML = lHtml;
 
         if(d.history && d.history.length > 0) {
@@ -79,33 +78,34 @@ async function refresh() {
     } catch(e) {}
 }
 
-async function doAct(a){ 
-    const res = await fetch('api.php?action='+a); 
-    const d = await res.json();
-    if(d.success) {
-        if(a === 'next_round') {
-            document.getElementById('wl').value = '';
-            document.getElementById('wr').value = '';
-        }
-        refresh(); 
-    }
+function togglePlayerMenu(id, e) {
+    e.stopPropagation();
+    const menu = document.getElementById('player-menu-'+id);
+    const visible = menu.style.display === 'block';
+    document.querySelectorAll('.player-dropdown').forEach(m => m.style.display = 'none');
+    menu.style.display = visible ? 'none' : 'block';
 }
+
+function editPl(id, old) { let n = prompt("New Name:", old); if(n) doAct('edit_player&id='+id+'&name='+encodeURIComponent(n)); }
+function remPl(id) { if(confirm("Delete player?")) doAct('remove_player&id='+id); }
+
+async function doAct(a){ 
+    await fetch('api.php?action='+a); 
+    if(a.includes('next_round')) { document.getElementById('wl').value=''; document.getElementById('wr').value=''; }
+    refresh(); 
+}
+
+window.onclick = function() { document.querySelectorAll('.player-dropdown').forEach(m => m.style.display = 'none'); }
 setInterval(refresh, 3000); window.onload = refresh;
 </script></head>
 <body><div class="container">
-    <div class="header">
-        <b>GM CONTROL <span id="round-num" style="margin-left:15px; color:#007aff;">ROUND: 1</span></b>
-        <button onclick="document.getElementById('menu').style.display='block'" style="width:auto; padding:5px 15px;">MENU</button>
-    </div>
+    <div class="header"><b>GM CONTROL <span id="round-num">ROUND: 1</span></b><button onclick="document.getElementById('menu').style.display='block'" style="width:auto; padding:5px 10px;">MENU</button></div>
     <div id="stat-text" class="status-bar">LOADING...</div>
     <div id="admin-prompts" class="prompt-container" style="display:none;"><div id="box-l" class="prompt-box"></div><div id="box-r" class="prompt-box"></div></div>
     
     <div id="wait-ui" style="display:none; text-align:center;">
-        <p id="helper-text" style="font-size:0.85em; font-weight:bold; margin-bottom:10px;">Enter text in one box to begin</p>
-        <div class="admin-input-row">
-            <input type="text" id="wl" placeholder="LEFT PROMPT" oninput="validateInputs()">
-            <input type="text" id="wr" placeholder="RIGHT PROMPT" oninput="validateInputs()">
-        </div>
+        <p id="helper-text" style="font-size:0.8em; font-weight:bold; margin-bottom:5px;">Enter text in one box</p>
+        <div class="admin-input-row"><input type="text" id="wl" placeholder="LEFT" oninput="validateInputs()"><input type="text" id="wr" placeholder="RIGHT" oninput="validateInputs()"></div>
         <button id="start-btn" onclick="doAct('start_round&wl='+document.getElementById('wl').value.toUpperCase()+'&wr='+document.getElementById('wr').value.toUpperCase())">START ROUND</button>
     </div>
     <div id="active-ui" style="display:none;"><button style="background:green" onclick="doAct('lock_score')">LOCK & SCORE</button></div>
@@ -120,12 +120,12 @@ setInterval(refresh, 3000); window.onload = refresh;
     <div id="history-cont" style="display:none; overflow-x:auto; margin-top:10px;"><div id="history-view"></div></div>
 
     <div id="menu" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000;">
-        <div class="container" style="margin:10% auto; max-width:350px;">
-            <h3 style="margin-top:0">Settings</h3>
-            <label style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">Allow Spaces <input type="checkbox" id="space-toggle" onchange="fetch('api.php?action=update_settings&allow_spaces='+(this.checked?1:0))"></label>
-            <button onclick="if(confirm('Clear Scores & History?')) { doAct('reset_scores'); document.getElementById('menu').style.display='none'; }">Clear Scores</button>
-            <button style="background:red; margin-top:10px;" onclick="if(confirm('Full Wipe? This deletes players!')) { doAct('reset_game'); document.getElementById('menu').style.display='none'; }">Full Reset</button>
-            <button style="background:#444; margin-top:20px;" onclick="document.getElementById('menu').style.display='none'">CLOSE</button>
+        <div class="container" style="margin:10% auto; max-width:320px;">
+            <h3>Settings</h3>
+            <label style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">Allow Spaces <input type="checkbox" id="space-toggle" onchange="fetch('api.php?action=update_settings&allow_spaces='+(this.checked?1:0))"></label>
+            <button onclick="if(confirm('Reset Scores?')) { doAct('reset_scores'); document.getElementById('menu').style.display='none'; }">Reset Scores</button>
+            <button style="background:red; margin-top:5px;" onclick="if(confirm('Wipe Everything?')) { doAct('reset_game'); document.getElementById('menu').style.display='none'; }">Full Reset</button>
+            <button style="background:#444; margin-top:15px;" onclick="document.getElementById('menu').style.display='none'">CLOSE</button>
         </div>
     </div>
 </div><button id="theme-toggle-btn" class="theme-btn" onclick="toggleTheme()">🌙</button></body></html>

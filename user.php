@@ -5,25 +5,23 @@
 <script>
 const token = localStorage.getItem('player_token');
 if (!token) { window.location.href = 'index.php'; }
-
 let currentRn = 0;
+
 async function refresh() {
     if (document.activeElement && document.activeElement.id === 'ans-i') return;
     try {
         const res = await fetch(`api.php?action=get_state&token=${token}`);
         const d = await res.json();
-        
-        if (d.error === 'not_found') { 
-            localStorage.removeItem('player_token');
-            window.location.href = 'index.php'; 
-            return; 
-        }
+        if (d.error === 'not_found') { window.location.href = 'index.php'; return; }
 
-        if (d.round_number !== currentRn) { currentRn = d.round_number; document.getElementById('game-area').innerHTML = ''; }
-        
         document.getElementById('display-name').innerText = d.player_name;
-        document.getElementById('round-num-user').innerText = 'ROUND: ' + d.round_number;
         document.getElementById('score-val').innerText = d.score;
+        document.getElementById('round-num-user').innerText = 'ROUND: ' + d.round_number;
+
+        if (d.round_number !== currentRn) { 
+            currentRn = d.round_number; 
+            const inp = document.getElementById('ans-i'); if(inp) inp.value = ''; 
+        }
 
         const myWord = (d.my_ans || "").toUpperCase();
         const boxL = document.getElementById('box-l');
@@ -41,7 +39,7 @@ async function refresh() {
         const area = document.getElementById('game-area');
         if (d.status === 'active') {
             if (!document.getElementById('ans-i')) {
-                area.innerHTML = `<input type="text" id="ans-i" placeholder="ENTER WORD..." style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"><button onclick="sub()">SUBMIT</button><p id="err" style="color:red;display:none"></p>`;
+                area.innerHTML = `<input type="text" id="ans-i" placeholder="ENTER WORD..." style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"><button onclick="sub()">SUBMIT</button>`;
             }
         } else { area.innerHTML = ''; }
         
@@ -53,10 +51,8 @@ async function refresh() {
 async function sub() {
     const v = document.getElementById('ans-i').value.trim().toUpperCase();
     if(!v) return;
-    const res = await fetch(`api.php?action=submit&token=${token}&ans=${encodeURIComponent(v)}`);
-    const d = await res.json();
-    if(!d.success) { document.getElementById('err').innerText = d.error; document.getElementById('err').style.display='block'; }
-    else { document.getElementById('err').style.display='none'; refresh(); }
+    await fetch(`api.php?action=submit&token=${token}&ans=${encodeURIComponent(v)}`);
+    refresh();
 }
 setInterval(refresh, 2500); window.onload = refresh;
 </script></head>
