@@ -59,12 +59,9 @@ try {
         echo json_encode(['status'=>$st['status'], 'player_name'=>$pl['name'], 'score'=>$pl['total_score'], 'round_number'=>$rn, 'my_ans'=>strtoupper($my_ans['answer_text']??''), 'word_left'=>strtoupper($st['word_left']??''), 'word_right'=>strtoupper($st['word_right']??''), 'leaderboard'=>$lb]);
     }
     elseif ($action === 'start_round') {
-        $wl = trim($_GET['wl'] ?? '');
-        $wr = trim($_GET['wr'] ?? '');
-        // STRICT VALIDATION: Only one box can be filled
+        $wl = trim($_GET['wl'] ?? ''); $wr = trim($_GET['wr'] ?? '');
         if (($wl === '' && $wr === '') || ($wl !== '' && $wr !== '')) {
-            echo json_encode(['success' => false, 'error' => 'One box must be empty!']);
-            exit;
+            echo json_encode(['success' => false, 'error' => 'One box must be empty!']); exit;
         }
         $wl = strtoupper($conn->real_escape_string($wl)); 
         $wr = strtoupper($conn->real_escape_string($wr));

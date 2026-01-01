@@ -7,10 +7,21 @@ function validateInputs() {
     const l = document.getElementById('wl').value.trim();
     const r = document.getElementById('wr').value.trim();
     const btn = document.getElementById('start-btn');
-    // Enabled only if one is empty and one is full
-    const isValid = (l === "" && r !== "") || (l !== "" && r === "");
-    btn.disabled = !isValid;
-    btn.style.opacity = isValid ? "1" : "0.5";
+    const msg = document.getElementById('helper-text');
+    
+    if (l === "" && r === "") {
+        msg.innerText = "Enter text in one box to begin";
+        msg.style.color = "#888";
+        btn.disabled = true;
+    } else if (l !== "" && r !== "") {
+        msg.innerText = "Only one box can contain text!";
+        msg.style.color = "#dc3545";
+        btn.disabled = true;
+    } else {
+        msg.innerText = "Ready to start!";
+        msg.style.color = "#28a745";
+        btn.disabled = false;
+    }
 }
 
 async function refresh() {
@@ -30,7 +41,7 @@ async function refresh() {
             document.getElementById('box-r').innerText = d.word_right;
         } else { 
             document.getElementById('admin-prompts').style.display = 'none';
-            validateInputs(); // Check button state when waiting
+            validateInputs();
         }
 
         document.getElementById('space-toggle').checked = d.settings.allow_spaces == 1;
@@ -77,8 +88,6 @@ async function doAct(a){
             document.getElementById('wr').value = '';
         }
         refresh(); 
-    } else if (d.error) {
-        alert(d.error);
     }
 }
 setInterval(refresh, 3000); window.onload = refresh;
@@ -91,7 +100,8 @@ setInterval(refresh, 3000); window.onload = refresh;
     <div id="stat-text" class="status-bar">LOADING...</div>
     <div id="admin-prompts" class="prompt-container" style="display:none;"><div id="box-l" class="prompt-box"></div><div id="box-r" class="prompt-box"></div></div>
     
-    <div id="wait-ui" style="display:none;">
+    <div id="wait-ui" style="display:none; text-align:center;">
+        <p id="helper-text" style="font-size:0.85em; font-weight:bold; margin-bottom:10px;">Enter text in one box to begin</p>
         <div class="admin-input-row">
             <input type="text" id="wl" placeholder="LEFT PROMPT" oninput="validateInputs()">
             <input type="text" id="wr" placeholder="RIGHT PROMPT" oninput="validateInputs()">
